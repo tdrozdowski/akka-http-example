@@ -48,8 +48,6 @@ trait WeatherService extends Protocols {
   def config : Config
   val logger : LoggingAdapter
 
-
-
   val routes = {
     logRequestResult("weather") {
       pathPrefix("current") {
@@ -58,7 +56,13 @@ trait WeatherService extends Protocols {
             WeatherCache.findByZip(zip).fold[ToResponseMarshallable](BadRequest -> s"Zip $zip was not found!")(report => report)
           }
         }
-      }
+      } ~
+        (post & entity(as[WeatherReport])) { report =>
+          complete {
+            WeatherCache.addReport(report)
+            Created -> s"Report added for ${report.zip}"
+          }
+        }
     }
   }
 }
