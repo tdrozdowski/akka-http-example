@@ -48,22 +48,22 @@ trait WeatherService extends Cors {
   val logger : LoggingAdapter
 
   val routes = {
-    logRequestResult("weather") {
-      cors {
-        pathPrefix("current") {
+    logRequestResult("weather-api") {
+      cors {   // paths are applied against the various routes - the first one to accept it can either complete or reject it
+        pathPrefix("weather" / "current") {
           (get & path(Segment)) { zip =>
             complete {
               val badRequestError = NotFound -> Error(status = 404, s"Zip $zip was not found!")
               WeatherCache.findByZip(zip).fold[ToResponseMarshallable](badRequestError)(report => report)
             }
-          }
-        } ~
+          } ~
           (post & entity(as[WeatherReport])) { report =>
             complete {
               WeatherCache.addReport(report)
               Created -> s"Report added for ${report.zip}"
             }
           }
+        }
       }
     }
   }
