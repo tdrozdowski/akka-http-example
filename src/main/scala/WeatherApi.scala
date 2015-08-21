@@ -25,9 +25,11 @@ import spray.json.DefaultJsonProtocol
  */
 
 case class WeatherReport(zip : String, highTemp : Float, lowTemp : Float, current : Float, conditions : String)
+case class Error(status : Int, message : String)
 
-trait Protocols extends DefaultJsonProtocol {
+object Protocols extends DefaultJsonProtocol {
   implicit val weatherReportFormat = jsonFormat5(WeatherReport.apply)
+  implicit val errorFormat = jsonFormat2(Error.apply)
 }
 
 object WeatherCache {
@@ -40,7 +42,8 @@ object WeatherCache {
 
 }
 
-trait WeatherService extends Protocols {
+trait WeatherService extends Cors {
+  import Protocols._
   implicit val system : ActorSystem
   implicit def executor : ExecutionContextExecutor
   implicit val materializer : Materializer
@@ -50,19 +53,22 @@ trait WeatherService extends Protocols {
 
   val routes = {
     logRequestResult("weather") {
-      pathPrefix("current") {
-        (get & path(Segment)) { zip =>
-          complete {
-            WeatherCache.findByZip(zip).fold[ToResponseMarshallable](BadRequest -> s"Zip $zip was not found!")(report => report)
+      cors {
+        pathPrefix("current") {
+          (get & path(Segment)) { zip =>
+            complete {
+              val badRequestError = NotFound -> Error(status = 404, s"Zip $zip was not found!")
+              WeatherCache.findByZip(zip).fold[ToResponseMarshallable](badRequestError)(report => report)
+            }
           }
-        }
-      } ~
-        (post & entity(as[WeatherReport])) { report =>
-          complete {
-            WeatherCache.addReport(report)
-            Created -> s"Report added for ${report.zip}"
+        } ~
+          (post & entity(as[WeatherReport])) { report =>
+            complete {
+              WeatherCache.addReport(report)
+              Created -> s"Report added for ${report.zip}"
+            }
           }
-        }
+      }
     }
   }
 }
