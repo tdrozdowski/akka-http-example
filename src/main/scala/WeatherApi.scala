@@ -55,6 +55,7 @@ trait WeatherService extends Cors with SprayJsonSupport {
           (get & path(Segment)) {
             zip =>
               val badRequestError = NotFound -> Error(status = 404, s"Zip $zip was not found!")
+              // not sure what's going on here - this compiles cleanly but IntelliJ reports as error...
               complete {
                 WeatherCache.findByZip(zip).fold[ToResponseMarshallable](badRequestError)(report => OK -> report)
               }
@@ -67,6 +68,7 @@ trait WeatherService extends Cors with SprayJsonSupport {
           }
         } ~
         get {
+          // demonstrates combining directives that results in a tuple being handled by editor as an error incorrectly
           (path("example" / Segment) & extractHost) {
             (path, host) =>
               complete(OK -> s"example of mis-highlighted code in intellij: $path , $host")
