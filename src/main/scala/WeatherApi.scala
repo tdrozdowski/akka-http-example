@@ -1,8 +1,9 @@
 import akka.actor.ActorSystem
 import akka.event.{Logging, LoggingAdapter}
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
+import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.marshalling.ToResponseMarshallable
+import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.model.StatusCodes._
 import akka.http.scaladsl.server.Directives._
 import akka.stream.{ActorMaterializer, Materializer}
@@ -38,7 +39,7 @@ object WeatherCache {
 
 }
 
-trait WeatherService extends Cors {
+trait WeatherService extends Cors with SprayJsonSupport {
   import Protocols._
   implicit val system : ActorSystem
   implicit def executor : ExecutionContextExecutor
@@ -51,17 +52,24 @@ trait WeatherService extends Cors {
     logRequestResult("weather-api") {
       cors {   // paths are applied against the various routes - the first one to accept it can either complete or reject it
         pathPrefix("weather" / "current") {
-          (get & path(Segment)) { zip =>
-            complete {
+          (get & path(Segment)) {
+            zip =>
               val badRequestError = NotFound -> Error(status = 404, s"Zip $zip was not found!")
-              WeatherCache.findByZip(zip).fold[ToResponseMarshallable](badRequestError)(report => report)
-            }
+              complete {
+                WeatherCache.findByZip(zip).fold[ToResponseMarshallable](badRequestError)(report => OK -> report)
+              }
           } ~
           (post & entity(as[WeatherReport])) { report =>
             complete {
               WeatherCache.addReport(report)
               Created -> s"Report added for ${report.zip}"
             }
+          }
+        } ~
+        get {
+          (path("example" / Segment) & extractHost) {
+            (path, host) =>
+              complete(OK -> s"example of mis-highlighted code in intellij: $path , $host")
           }
         }
       }
